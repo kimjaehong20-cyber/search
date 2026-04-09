@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Handwritten Digit Recognition</title>
+
+  <!-- TensorFlow.js library for in-browser ML -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+
+  <style>
+    /* ── Layout ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #e94560, #0f3460);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #aaa;
+      margin-bottom: 24px;
+    }
+
+    /* ── Status banner ── */
+    #status {
+      background: #0f3460;
+      border-left: 4px solid #e94560;
+      padding: 10px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 600px;
+      font-size: 0.9rem;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ── Progress bar ── */
+    #progress-wrap {
+      width: 100%;
+      max-width: 600px;
+      background: #0f3460;
+      border-radius: 6px;
+      height: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #e94560, #f5a623);
+      border-radius: 6px;
+      transition: width 0.3s;
+    }
+
+    /* ── Main panel ── */
+    .panel {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      max-width: 660px;
+    }
+
+    /* ── Drawing canvas ── */
+    .canvas-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    canvas#drawCanvas {
+      background: #000;
+      border: 3px solid #e94560;
+      border-radius: 12px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px 22px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.96); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #clearBtn  { background: #444; color: #eee; }
+    #predictBtn{ background: #e94560; color: #fff; }
+
+    /* ── Result section ── */
+    .result-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      min-width: 200px;
+    }
+
+    .big-digit {
+      font-size: 5rem;
+      font-weight: 900;
+      width: 120px;
+      height: 120px;
+      background: #0f3460;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f5a623;
+      border: 2px solid #e94560;
+    }
+
+    /* ── Confidence bars ── */
+    .bars-title {
+      font-size: 0.85rem;
+      color: #aaa;
+      align-self: flex-start;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 220px;
+    }
+
+    .bar-label {
+      width: 18px;
+      text-align: right;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #ccc;
+    }
+
+    .bar-bg {
+      flex: 1;
+      height: 14px;
+      background: #222;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: #0f3460;
+      border-radius: 4px;
+      transition: width 0.35s ease;
+      width: 0%;
+    }
+    .bar-fill.top { background: linear-gradient(90deg, #e94560, #f5a623); }
+
+    .bar-pct {
+      width: 38px;
+      font-size: 0.75rem;
+      color: #aaa;
+      text-align: right;
+    }
+
+    /* ── Preview thumbnail ── */
+    canvas#previewCanvas {
+      border: 1px solid #333;
+      border-radius: 4px;
+      image-rendering: pixelated;
+    }
+
+    .preview-label {
+      font-size: 0.75rem;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Handwritten Digit Recognition</h1>
+  <p class="subtitle">Draw a digit (0–9) · Model trains in your browser using MNIST</p>
+
+  <!-- Training status -->
+  <div id="status">⏳ Initializing TensorFlow.js…</div>
+  <div id="progress-wrap"><div id="progress-bar"></div></div>
+
+  <!-- Main UI -->
+  <div class="panel">
+
+    <!-- Left: drawing canvas -->
+    <div class="canvas-section">
+      <canvas id="drawCanvas" width="280" height="280"></canvas>
+      <div class="btn-row">
+        <button id="clearBtn"   disabled>Clear</button>
+        <button id="predictBtn" disabled>Predict</button>
+      </div>
+      <!-- 28×28 preview of what the model sees -->
+      <canvas id="previewCanvas" width="28" height="28" style="width:84px;height:84px;"></canvas>
+      <span class="preview-label">28×28 model input</span>
+    </div>
+
+    <!-- Right: result + confidence bars -->
+    <div class="result-section">
+      <div class="big-digit" id="digitDisplay">?</div>
+      <div class="bars-title">Confidence per digit</div>
+      <div id="barsContainer"></div>
+    </div>
+
+  </div>
+
+<script>
+/* =====================================================================
+   Constants & DOM refs
+===================================================================== */
+const CANVAS_SIZE  = 280;  // pixels for the drawing canvas
+const MODEL_SIZE   = 28;   // MNIST input size
+const BRUSH_RADIUS = 12;   // drawing brush radius (pixels on 280px canvas)
+
+const drawCanvas    = document.getElementById('drawCanvas');
+const previewCanvas = document.getElementById('previewCanvas');
+const statusEl      = document.getElementById('status');
+const progressWrap  = document.getElementById('progress-wrap');
+const progressBar   = document.getElementById('progress-bar');
+const digitDisplay  = document.getElementById('digitDisplay');
+const barsContainer = document.getElementById('barsContainer');
+const clearBtn      = document.getElementById('clearBtn');
+const predictBtn    = document.getElementById('predictBtn');
+
+const ctx     = drawCanvas.getContext('2d');
+const prevCtx = previewCanvas.getContext('2d');
+
+/* =====================================================================
+   Build confidence bar elements (digits 0–9)
+===================================================================== */
+const barFills = [];
+const barPcts  = [];
+
+for (let d = 0; d < 10; d++) {
+  const row   = document.createElement('div');
+  row.className = 'bar-row';
+
+  const label = document.createElement('div');
+  label.className = 'bar-label';
+  label.textContent = d;
+
+  const bg   = document.createElement('div');  bg.className = 'bar-bg';
+  const fill = document.createElement('div');  fill.className = 'bar-fill';
+  const pct  = document.createElement('div');  pct.className = 'bar-pct';
+  pct.textContent = '0%';
+
+  bg.appendChild(fill);
+  row.append(label, bg, pct);
+  barsContainer.appendChild(row);
+
+  barFills.push(fill);
+  barPcts.push(pct);
+}
+
+/* =====================================================================
+   Drawing logic
+===================================================================== */
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+let isDrawing = false;
+let lastX = 0, lastY = 0;
+
+// Helper: draw a filled circle for smooth brush feel
+function drawDot(x, y) {
+  ctx.beginPath();
+  ctx.arc(x, y, BRUSH_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+}
+
+// Helper: connect two points smoothly
+function drawLine(x0, y0, x1, y1) {
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth   = BRUSH_RADIUS * 2;
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+}
+
+// Normalise pointer position from both mouse and touch
+function getPos(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  const src  = e.touches ? e.touches[0] : e;
+  return {
+    x: (src.clientX - rect.left) * (CANVAS_SIZE / rect.width),
+    y: (src.clientY - rect.top)  * (CANVAS_SIZE / rect.height),
+  };
+}
+
+drawCanvas.addEventListener('mousedown',  e => { isDrawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; drawDot(p.x, p.y); });
+drawCanvas.addEventListener('mousemove',  e => { if (!isDrawing) return; const p = getPos(e); drawLine(lastX, lastY, p.x, p.y); drawDot(p.x, p.y); lastX = p.x; lastY = p.y; autoPredict(); });
+drawCanvas.addEventListener('mouseup',    () => { isDrawing = false; });
+drawCanvas.addEventListener('mouseleave', () => { isDrawing = false; });
+
+drawCanvas.addEventListener('touchstart', e => { e.preventDefault(); isDrawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; drawDot(p.x, p.y); }, { passive: false });
+drawCanvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!isDrawing) return; const p = getPos(e); drawLine(lastX, lastY, p.x, p.y); drawDot(p.x, p.y); lastX = p.x; lastY = p.y; autoPredict(); }, { passive: false });
+drawCanvas.addEventListener('touchend',   () => { isDrawing = false; });
+
+// Clear canvas and reset display
+clearBtn.addEventListener('click', () => {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  prevCtx.fillStyle = '#000';
+  prevCtx.fillRect(0, 0, MODEL_SIZE, MODEL_SIZE);
+  digitDisplay.textContent = '?';
+  for (let d = 0; d < 10; d++) {
+    barFills[d].style.width = '0%';
+    barFills[d].classList.remove('top');
+    barPcts[d].textContent  = '0%';
+  }
+});
+
+/* =====================================================================
+   Image preprocessing
+   Resize 280×280 → 28×28 and normalise pixel values to [0, 1]
+===================================================================== */
+function getModelInput() {
+  // Draw the current canvas onto the 28×28 preview canvas
+  prevCtx.drawImage(drawCanvas, 0, 0, CANVAS_SIZE, CANVAS_SIZE, 0, 0, MODEL_SIZE, MODEL_SIZE);
+
+  // Read pixel data and convert to a Float32 tensor [1, 28, 28, 1]
+  const imageData = prevCtx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
+  const input = tf.tidy(() => {
+    const raw = tf.browser.fromPixels(imageData, 1);   // grayscale [28,28,1]
+    const normalized = raw.toFloat().div(255);          // normalise to [0,1]
+    return normalized.expandDims(0);                    // add batch dim → [1,28,28,1]
+  });
+  return input;
+}
+
+/* =====================================================================
+   Model definition  (small CNN, ~MNIST tutorial style)
+===================================================================== */
+function buildModel() {
+  const model = tf.sequential();
+
+  // Conv block 1
+  model.add(tf.layers.conv2d({
+    inputShape: [28, 28, 1],
+    filters: 32, kernelSize: 3, activation: 'relu', padding: 'same',
+  }));
+  model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
+
+  // Conv block 2
+  model.add(tf.layers.conv2d({ filters: 64, kernelSize: 3, activation: 'relu', padding: 'same' }));
+  model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
+
+  // Fully-connected head
+  model.add(tf.layers.flatten());
+  model.add(tf.layers.dropout({ rate: 0.25 }));
+  model.add(tf.layers.dense({ units: 128, activation: 'relu' }));
+  model.add(tf.layers.dropout({ rate: 0.5 }));
+  model.add(tf.layers.dense({ units: 10, activation: 'softmax' }));  // 10 classes
+
+  model.compile({
+    optimizer: tf.train.adam(0.001),
+    loss: 'categoricalCrossentropy',
+    metrics: ['accuracy'],
+  });
+
+  return model;
+}
+
+/* =====================================================================
+   MNIST data loading
+   Fetches the sprite image (65,000 × 28×28 grayscale digits, stacked
+   vertically) and the corresponding labels from Google's CDN.
+===================================================================== */
+const MNIST_IMAGES_URL = 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png';
+const MNIST_LABELS_URL = 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8';
+
+const NUM_TRAIN  = 55000;  // samples used for training
+const NUM_TEST   =  5000;  // samples used for validation
+const IMAGE_SIZE = 784;    // 28 × 28
+
+let mnistImages = null;  // Float32Array containing all pixel data
+let mnistLabels = null;  // Uint8Array containing one-hot labels
+
+async function loadMNISTImages() {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Render the full sprite onto an off-screen canvas
+      const total = NUM_TRAIN + NUM_TEST;
+      const oc    = document.createElement('canvas');
+      oc.width    = MODEL_SIZE;
+      oc.height   = MODEL_SIZE * total;
+      const oc2d  = oc.getContext('2d');
+      oc2d.drawImage(img, 0, 0);
+
+      const pixels  = oc2d.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE * total);
+      const floats  = new Float32Array(total * IMAGE_SIZE);
+
+      // Extract the red channel (grayscale) and normalise
+      for (let i = 0; i < total * IMAGE_SIZE; i++) {
+        floats[i] = pixels.data[i * 4] / 255;  // RGBA → R → [0,1]
+      }
+      mnistImages = floats;
+      resolve();
+    };
+    img.onerror = reject;
+    img.src = MNIST_IMAGES_URL;
+  });
+}
+
+async function loadMNISTLabels() {
+  const resp = await fetch(MNIST_LABELS_URL);
+  const buf  = await resp.arrayBuffer();
+  mnistLabels = new Uint8Array(buf);  // one-hot encoded, 10 values per sample
+}
+
+/* =====================================================================
+   Create tf.Tensors for a given split (train or test)
+===================================================================== */
+function getDataTensors(offset, count) {
+  return tf.tidy(() => {
+    const imgBuf   = mnistImages.slice(offset * IMAGE_SIZE, (offset + count) * IMAGE_SIZE);
+    const labelBuf = mnistLabels.slice(offset * 10,        (offset + count) * 10);
+
+    const xs = tf.tensor4d(imgBuf, [count, 28, 28, 1]);
+    const ys = tf.tensor2d(labelBuf, [count, 10]);
+    return { xs, ys };
+  });
+}
+
+/* =====================================================================
+   Training loop
+===================================================================== */
+let model = null;
+let autoThrottle = null;  // debounce timer for auto-predict
+
+async function trainModel() {
+  setStatus('📥 Downloading MNIST dataset…');
+  showProgress(true);
+  setProgress(5);
+
+  // Load images and labels in parallel
+  await Promise.all([loadMNISTImages(), loadMNISTLabels()]);
+  setProgress(30);
+  setStatus('🔨 Building CNN model…');
+
+  model = buildModel();
+  setProgress(35);
+
+  setStatus('🚂 Training CNN on 55,000 MNIST samples…');
+
+  const EPOCHS     = 5;
+  const BATCH_SIZE = 512;
+
+  const { xs: xTrain, ys: yTrain } = getDataTensors(0, NUM_TRAIN);
+  const { xs: xTest,  ys: yTest  } = getDataTensors(NUM_TRAIN, NUM_TEST);
+
+  await model.fit(xTrain, yTrain, {
+    epochs:          EPOCHS,
+    batchSize:       BATCH_SIZE,
+    validationData:  [xTest, yTest],
+    shuffle:         true,
+    callbacks: {
+      onEpochEnd: (epoch, logs) => {
+        const pct = 35 + ((epoch + 1) / EPOCHS) * 55;
+        setProgress(pct);
+        setStatus(
+          `🚂 Epoch ${epoch + 1}/${EPOCHS} — ` +
+          `loss: ${logs.loss.toFixed(4)} · ` +
+          `val_acc: ${(logs.val_acc * 100).toFixed(1)}%`
+        );
+      },
+    },
+  });
+
+  // Cleanup training tensors
+  xTrain.dispose(); yTrain.dispose();
+  xTest.dispose();  yTest.dispose();
+
+  setProgress(100);
+  showProgress(false);
+  setStatus('✅ Model ready!  Draw a digit (0–9) on the canvas and see the prediction.');
+
+  // Enable UI
+  clearBtn.disabled   = false;
+  predictBtn.disabled = false;
+}
+
+/* =====================================================================
+   Inference
+===================================================================== */
+function predict() {
+  if (!model) return;
+
+  const input = getModelInput();
+  const probs = tf.tidy(() => model.predict(input));
+  const probsData = probs.dataSync();  // Float32Array of length 10
+
+  input.dispose();
+  probs.dispose();
+
+  // Find predicted class
+  let maxProb = 0, predicted = 0;
+  for (let d = 0; d < 10; d++) {
+    if (probsData[d] > maxProb) { maxProb = probsData[d]; predicted = d; }
+  }
+
+  // Update big digit display
+  digitDisplay.textContent = predicted;
+
+  // Update confidence bars
+  for (let d = 0; d < 10; d++) {
+    const pct = (probsData[d] * 100).toFixed(1);
+    barFills[d].style.width = pct + '%';
+    barPcts[d].textContent  = pct + '%';
+    barFills[d].classList.toggle('top', d === predicted);
+  }
+}
+
+// Debounced auto-predict while drawing (runs 300ms after last stroke)
+function autoPredict() {
+  clearTimeout(autoThrottle);
+  autoThrottle = setTimeout(predict, 300);
+}
+
+predictBtn.addEventListener('click', predict);
+
+/* =====================================================================
+   Utility helpers
+===================================================================== */
+function setStatus(msg) { statusEl.textContent = msg; }
+function showProgress(v) { progressWrap.style.display = v ? 'block' : 'none'; }
+function setProgress(pct) { progressBar.style.width = pct + '%'; }
+
+/* =====================================================================
+   Entry point
+===================================================================== */
+(async () => {
+  try {
+    await trainModel();
+  } catch (err) {
+    setStatus('❌ Error: ' + err.message);
+    showProgress(false);
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기사 및 증권 리포트 검색</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 5px;
+        }
+        header p {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .search-section {
+            background-color: white;
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .search-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .search-container input {
+            flex: 1;
+            min-width: 300px;
+            padding: 12px 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            transition: border-color 0.3s;
+        }
+        .search-container input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .search-container select {
+            padding: 12px 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .search-container button {
+            padding: 12px 30px;
+            font-size: 16px;
+            background-color: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .search-container button:hover {
+            background-color: #764ba2;
+        }
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 20px auto;
+            gap: 15px;
+            padding: 0 20px;
+            height: calc(100vh - 320px);
+        }
+        .left-sidebar {
+            width: 280px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-y: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .left-sidebar h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        .report-link {
+            display: block;
+            padding: 10px;
+            margin-bottom: 8px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #667eea;
+            text-decoration: none;
+            color: #333;
+            font-size: 14px;
+            border-radius: 3px;
+            transition: all 0.3s;
+        }
+        .report-link:hover {
+            background-color: #f0f0f0;
+            transform: translateX(5px);
+        }
+        .content {
+            flex: 1;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-y: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .content h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .right-sidebar {
+            width: 350px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-y: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .right-sidebar h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        .article-item {
+            margin-bottom: 12px;
+            padding: 12px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border-left: 3px solid #764ba2;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .article-item:hover {
+            background-color: #efefef;
+            transform: translateX(3px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .article-item h4 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        .article-item .source {
+            font-size: 12px;
+            color: #999;
+            margin: 5px 0;
+        }
+        .article-item .date {
+            font-size: 11px;
+            color: #bbb;
+        }
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-size: 14px;
+        }
+        .search-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+        .search-tabs button {
+            padding: 8px 20px;
+            border: 2px solid #ddd;
+            background-color: white;
+            color: #666;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .search-tabs button.active {
+            background-color: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📰 기사 & 증권 리포트 검색</h1>
+        <p>한국과 해외 뉴스, 증권사 리포트를 한곳에서 검색하세요</p>
+    </header>
+    
+    <div class="search-section">
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="기사나 키워드를 검색하세요...">
+            <select id="source-filter">
+                <option value="all">모든 소스</option>
+                <option value="korea">한국 기사</option>
+                <option value="global">해외 기사</option>
+            </select>
+            <button onclick="searchArticles()">검색</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 왼쪽: 증권사 리포트 -->
+        <div class="left-sidebar" id="left-sidebar">
+            <h3>📊 증권사 리포트</h3>
+            <div id="report-list"></div>
+        </div>
+
+        <!-- 중앙: 기사 검색 결과 -->
+        <div class="content" id="content">
+            <h2>검색 결과</h2>
+            <div id="articles-results"></div>
+        </div>
+
+        <!-- 오른쪽: 기사 목록 -->
+        <div class="right-sidebar" id="right-sidebar">
+            <h3>📰 기사 목록</h3>
+            <div id="articles-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // 증권사 리포트 데이터
+        const brokerageReports = [
+            // 한국 증권사
+            { name: "삼성증권 보고서", url: "https://www.samsungpop.com/pop/report/list1.jsp", category: "한국" },
+            { name: "현대차증권 리포트", url: "https://www.hyundai-i.com/index.jsp", category: "한국" },
+            { name: "신한투자증권", url: "https://www.shinhaninvest.com/", category: "한국" },
+            { name: "미래에셋 대우", url: "https://www.miraeasset.com/", category: "한국" },
+            { name: "KB증권", url: "https://www.kbsec.com/", category: "한국" },
+            { name: "국민은행 투자증권", url: "https://www.citibank.co.kr/", category: "한국" },
+            { name: "NH투자증권", url: "https://www.nhis.co.kr/", category: "한국" },
+            { name: "대신증권", url: "https://www.daishin.com/", category: "한국" },
+            { name: "한투증권", url: "https://www.hantoo.com/", category: "한국" },
+            { name: "주한투자증권", url: "https://www.jugagcorp.com/", category: "한국" },
+            // 해외 증권사
+            { name: "Goldman Sachs Research", url: "https://www.goldmansachs.com/research", category: "해외" },
+            { name: "JP Morgan Research", url: "https://www.jpmorgan.com/research", category: "해외" },
+            { name: "Morgan Stanley Research", url: "https://www.morganstanley.com/ideas", category: "해외" },
+            { name: "Citigroup Research", url: "https://www.citi.com/research", category: "해외" },
+            { name: "BofA Securities Research", url: "https://www.boaaml.com/research", category: "해외" },
+            { name: "Credit Suisse Research", url: "https://research.credit-suisse.com/", category: "해외" },
+            { name: "Nomura Research", url: "https://www.nomura.com/research", category: "해외" },
+            { name: "Deutsche Bank Research", url: "https://www.db.com/research", category: "해외" }
+        ];
+
+        // 기사 소스 (실제로는 API를 통해 가져옴)
+        let allArticles = [];
+
+        // 초기화: 증권사 리포트 로드
+        function initializeReports() {
+            const reportList = document.getElementById('report-list');
+            reportList.innerHTML = '';
+            
+            brokerageReports.forEach(report => {
+                const reportLink = document.createElement('a');
+                reportLink.className = 'report-link';
+                reportLink.href = report.url;
+                reportLink.target = '_blank';
+                reportLink.textContent = report.name;
+                reportLink.title = report.category;
+                reportList.appendChild(reportLink);
+            });
+        }
+
+        // 기사 검색 (여러 뉴스 소스에서)
+        async function searchArticles() {
+            const query = document.getElementById('search-input').value.trim();
+            const source = document.getElementById('source-filter').value;
+            
+            if (query === '') {
+                showEmptyNotice();
+                return;
+            }
+
+            // 기사 결과 표시 (실제 API 통합 시 여기서 데이터 가져옴)
+            const articles = generateMockArticles(query, source);
+            displayArticles(articles);
+            displayArticlesSidebar(articles);
+        }
+
+        // Mock 기사 생성 (실제 API 대신 사용)
+        function generateMockArticles(query, source) {
+            const mockArticlesKorea = [
+                { title: `한국 증시 ${query} 전망 - 분석가 의견`, source: "한경닷컴", date: "2026-04-09", url: "https://www.hankyung.com" },
+                { title: `${query} 관련주 급등, 기관 매수세`, source: "뉴스1", date: "2026-04-09", url: "https://www.news1.kr" },
+                { title: `증권가 "${query} 주가 더 깊어진다"`, source: "매경", date: "2026-04-08", url: "https://www.mk.co.kr" },
+                { title: `${query} 테마 미국 상장사 주목`, source: "연합뉴스", date: "2026-04-08", url: "https://www.yonhapnews.kr" },
+                { title: `기기 결정, ${query} 시장 영향도...시금석`, source: "조선비즈", date: "2026-04-07", url: "https://biz.chosum.co.kr/" },
+            ];
+
+            const mockArticlesGlobal = [
+                { title: `${query} market trends in global economy`, source: "Bloomberg", date: "2026-04-09", url: "https://www.bloomberg.com" },
+                { title: `What investors need to know about ${query}`, source: "Reuters", date: "2026-04-09", url: "https://www.reuters.com" },
+                { title: `${query} - Analysis from Wall Street experts`, source: "NYSE", date: "2026-04-08", url: "https://www.nyse.com" },
+                { title: `Global ${query} sector performance report`, source: "Financial Times", date: "2026-04-08", url: "https://www.ft.com" },
+                { title: `${query} exchange rates and market impact`, source: "CNBC", date: "2026-04-07", url: "https://www.cnbc.com" },
+            ];
+
+            let articles = [];
+            if (source === 'korea' || source === 'all') {
+                articles = articles.concat(mockArticlesKorea);
+            }
+            if (source === 'global' || source === 'all') {
+                articles = articles.concat(mockArticlesGlobal);
+            }
+
+            return articles;
+        }
+
+        // 기사 표시 (중앙 콘텐츠 영역)
+        function displayArticles(articles) {
+            const contentDiv = document.getElementById('articles-results');
+            contentDiv.innerHTML = '';
+
+            if (articles.length === 0) {
+                contentDiv.innerHTML = '<div class="empty-message">검색 결과가 없습니다.</div>';
+                return;
+            }
+
+            const heading = document.createElement('div');
+            heading.style.marginBottom = '20px';
+            heading.innerHTML = `<p style="color: #666; font-size: 14px;">총 ${articles.length}개의 기사를 찾았습니다</p>`;
+            contentDiv.appendChild(heading);
+
+            articles.forEach(article => {
+                const articleDiv = document.createElement('div');
+                articleDiv.className = 'article-item';
+                articleDiv.style.marginBottom = '15px';
+                articleDiv.innerHTML = `
+                    <h4>${article.title}</h4>
+                    <div class="source">출처: ${article.source}</div>
+                    <div class="date">${article.date}</div>
+                `;
+                articleDiv.onclick = () => window.open(article.url, '_blank');
+                articleDiv.style.cursor = 'pointer';
+                contentDiv.appendChild(articleDiv);
+            });
+        }
+
+        // 기사 표시 (우측 사이드바)
+        function displayArticlesSidebar(articles) {
+            const sidebarDiv = document.getElementById('articles-list');
+            sidebarDiv.innerHTML = '';
+
+            if (articles.length === 0) {
+                sidebarDiv.innerHTML = '<div class="empty-message">검색 결과가 없습니다.</div>';
+                return;
+            }
+
+            articles.slice(0, 10).forEach(article => {
+                const articleDiv = document.createElement('div');
+                articleDiv.className = 'article-item';
+                articleDiv.innerHTML = `
+                    <h4>${article.title}</h4>
+                    <div class="source">${article.source}</div>
+                    <div class="date">${article.date}</div>
+                `;
+                articleDiv.onclick = () => window.open(article.url, '_blank');
+                articleDiv.style.cursor = 'pointer';
+                sidebarDiv.appendChild(articleDiv);
+            });
+        }
+
+        // 빈 상태 표시
+        function showEmptyNotice() {
+            document.getElementById('articles-results').innerHTML = '<div class="empty-message">검색어를 입력해주세요</div>';
+            document.getElementById('articles-list').innerHTML = '<div class="empty-message">검색어를 입력해주세요</div>';
+        }
+
+        // 엔터 키로 검색
+        document.getElementById('search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchArticles();
+            }
+        });
+
+        // 페이지 로드 시 초기화
+        window.onload = () => {
+            initializeReports();
+            showEmptyNotice();
+        };
+    </script>
+</body>
+</html>
